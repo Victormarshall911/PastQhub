@@ -1,13 +1,19 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { X, Mail, Lock, Loader2, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { Turnstile } from '@marsidev/react-turnstile';
 
 export default function AuthModal({ isOpen, onClose }) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  
+  const turnstileRef = useRef(null);
+  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
   if (!isOpen) return null;
 
@@ -16,17 +22,35 @@ export default function AuthModal({ isOpen, onClose }) {
     setLoading(true);
     setError('');
 
+    if (!isLogin && password !== confirmPassword) {
+      setError('Passwords do not match');
+      setLoading(false);
+      return;
+    }
+
+    if (siteKey && !captchaToken) {
+      setError('Please complete the CAPTCHA');
+      setLoading(false);
+      return;
+    }
+
     try {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
+          options: {
+            captchaToken,
+          }
         });
         if (error) throw error;
       } else {
         const { error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            captchaToken,
+          }
         });
         if (error) throw error;
         // If sign up successful but requires email verification
@@ -35,16 +59,32 @@ export default function AuthModal({ isOpen, onClose }) {
       onClose();
     } catch (err) {
       setError(err.message);
+      // Reset captcha on error
+      if (turnstileRef.current) {
+        turnstileRef.current.reset();
+      }
+      setCaptchaToken('');
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleMode = () => {
+    setIsLogin(!isLogin);
+    setError('');
+    setPassword('');
+    setConfirmPassword('');
+    if (turnstileRef.current) {
+      turnstileRef.current.reset();
+    }
+    setCaptchaToken('');
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-surface-900/50 backdrop-blur-sm" onClick={onClose} />
       
-      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl animate-scale-in">
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-100">
           <h3 className="text-lg font-bold text-surface-900">
             {isLogin ? 'Welcome Back' : 'Create Account'}
@@ -95,6 +135,38 @@ export default function AuthModal({ isOpen, onClose }) {
             </div>
           </div>
 
+          {!isLogin && (
+            <div>
+              <label className="block text-xs font-semibold text-surface-600 mb-1.5">Confirm Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+                <input
+                  type="password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-surface-50 border border-surface-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
+          )}
+
+          {siteKey && (
+            <div className="flex justify-center mt-2">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={siteKey}
+                onSuccess={(token) => setCaptchaToken(token)}
+                onError={() => setError('CAPTCHA verification failed. Please try again.')}
+                onExpire={() => setCaptchaToken('')}
+                options={{
+                  theme: 'light',
+                }}
+              />
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -109,7 +181,7 @@ export default function AuthModal({ isOpen, onClose }) {
           <p className="text-xs text-surface-500">
             {isLogin ? "Don't have an account? " : "Already have an account? "}
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              onClick={toggleMode}
               className="font-bold text-primary-600 hover:text-primary-700"
             >
               {isLogin ? 'Sign Up' : 'Sign In'}
@@ -120,3 +192,4 @@ export default function AuthModal({ isOpen, onClose }) {
     </div>
   );
 }
+
