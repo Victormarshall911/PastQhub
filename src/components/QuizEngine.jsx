@@ -11,7 +11,7 @@ import {
   Clock,
 } from 'lucide-react';
 
-export default function QuizEngine({ questions, courseCode, onExit }) {
+export default function QuizEngine({ questions, courseCode, onExit, user }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [isRevealed, setIsRevealed] = useState(false);
@@ -120,6 +120,19 @@ export default function QuizEngine({ questions, courseCode, onExit }) {
                 <p className="text-lg font-bold text-primary-700">{scorePercent}%</p>
                 <p className="text-[10px] text-primary-600">Accuracy</p>
               </div>
+            </div>
+
+            {/* Progress Saving Status */}
+            <div className={`mt-6 p-4 rounded-xl text-sm flex items-center justify-center gap-2 ${user ? 'bg-primary-50 text-primary-700 border border-primary-200' : 'bg-surface-50 text-surface-500 border border-surface-200'}`}>
+              {user ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4" /> Progress saved to your account!
+                </>
+              ) : (
+                <>
+                  <Zap className="w-4 h-4" /> Sign in to save your quiz progress and history.
+                </>
+              )}
             </div>
 
             {/* Actions */}
