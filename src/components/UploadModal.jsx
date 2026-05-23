@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import ImageUploader from './ImageUploader';
 
-export default function UploadModal({ isOpen, onClose, faculties, onSubmit }) {
+export default function UploadModal({ isOpen, onClose, faculties, onSubmit, onAddMetadata, user }) {
   const [activeTab, setActiveTab] = useState('manual'); // 'manual' | 'image'
   const [formData, setFormData] = useState({
     facultyId: '',
@@ -25,6 +25,19 @@ export default function UploadModal({ isOpen, onClose, faculties, onSubmit }) {
     correctAnswer: -1,
     year: '2024/2025',
     semester: 'First Semester',
+  });
+
+  const [isAddingNew, setIsAddingNew] = useState({
+    faculty: false,
+    department: false,
+    course: false,
+  });
+
+  const [newData, setNewData] = useState({
+    facultyName: '',
+    departmentName: '',
+    courseCode: '',
+    courseTitle: '',
   });
 
   const [errors, setErrors] = useState({});
@@ -47,10 +60,23 @@ export default function UploadModal({ isOpen, onClose, faculties, onSubmit }) {
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.courseCode) newErrors.courseCode = 'Select a course';
+    if (isAddingNew.faculty && !newData.facultyName.trim()) newErrors.facultyId = 'Enter faculty name';
+    else if (!isAddingNew.faculty && !formData.facultyId) newErrors.facultyId = 'Select a faculty';
+
+    if (isAddingNew.department && !newData.departmentName.trim()) newErrors.departmentId = 'Enter department name';
+    else if (!isAddingNew.department && !formData.departmentId) newErrors.departmentId = 'Select a department';
+
+    if (isAddingNew.course) {
+      if (!newData.courseCode.trim()) newErrors.courseCode = 'Enter course code';
+      if (!newData.courseTitle.trim()) newErrors.courseTitle = 'Enter course title';
+    } else if (!isAddingNew.course && !formData.courseCode) {
+      newErrors.courseCode = 'Select a course';
+    }
+
     if (!formData.question.trim()) newErrors.question = 'Enter a question';
     if (formData.options.some((opt) => !opt.trim())) newErrors.options = 'Fill in all options';
     if (formData.correctAnswer === -1) newErrors.correctAnswer = 'Select the correct answer';
+    
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -66,6 +92,8 @@ export default function UploadModal({ isOpen, onClose, faculties, onSubmit }) {
       year: '2024/2025',
       semester: 'First Semester',
     });
+    setIsAddingNew({ faculty: false, department: false, course: false });
+    setNewData({ facultyName: '', departmentName: '', courseCode: '', courseTitle: '' });
     setErrors({});
     setExtractedQuestions([]);
     setCurrentExtractedIndex(0);
@@ -76,16 +104,62 @@ export default function UploadModal({ isOpen, onClose, faculties, onSubmit }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!validate()) return;
+
+    let finalFacultyId = formData.facultyId;
+    let finalDepartmentId = formData.departmentId;
+    let finalCourseCode = formData.courseCode;
+    
+    // Create new metadata if necessary
+    let updatedFaculties = [...faculties];
+    
+    if (isAddingNew.faculty) {
+      finalFacultyId = `fac-${Date.now()}`;
+      updatedFaculties.push({
+        id: finalFacultyId,
+        name: newData.facultyName,
+        icon: 'BookOpen',
+        departments: [],
+      });
+    }
+
+    const facIndex = updatedFaculties.findIndex(f => f.id === finalFacultyId);
+    
+    if (isAddingNew.department && facIndex !== -1) {
+      finalDepartmentId = `dept-${Date.now()}`;
+      updatedFaculties[facIndex].departments.push({
+        id: finalDepartmentId,
+        name: newData.departmentName,
+        courses: [],
+      });
+    }
+
+    const deptIndex = facIndex !== -1 ? updatedFaculties[facIndex].departments.findIndex(d => d.id === finalDepartmentId) : -1;
+
+    if (isAddingNew.course && deptIndex !== -1) {
+      finalCourseCode = newData.courseCode.toUpperCase();
+      updatedFaculties[facIndex].departments[deptIndex].courses.push({
+        code: finalCourseCode,
+        title: newData.courseTitle,
+      });
+    }
+
+    // Call onAddMetadata if any structural changes were made
+    if (isAddingNew.faculty || isAddingNew.department || isAddingNew.course) {
+      if (typeof onAddMetadata === 'function') {
+        onAddMetadata(updatedFaculties);
+      }
+    }
+
     onSubmit({
       id: `q-${Date.now()}`,
-      courseCode: formData.courseCode,
-      departmentId: formData.departmentId,
+      courseCode: finalCourseCode,
+      departmentId: finalDepartmentId,
       question: formData.question,
       options: formData.options,
       correctAnswer: formData.correctAnswer,
       year: formData.year,
       semester: formData.semester,
-      uploadedBy: 'You',
+      uploadedBy: user?.email ? user.email.split('@')[0] : 'You',
       createdAt: new Date().toISOString().split('T')[0],
     });
 
@@ -280,72 +354,150 @@ export default function UploadModal({ isOpen, onClose, faculties, onSubmit }) {
 
               {/* Faculty */}
               <div>
-                <label className="block text-xs font-semibold text-surface-600 mb-1.5">Faculty</label>
-                <div className="relative">
-                  <select
-                    value={formData.facultyId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, facultyId: e.target.value, departmentId: '', courseCode: '' })
-                    }
-                    className="w-full px-4 py-2.5 pr-10 bg-surface-50 border border-surface-200 rounded-xl text-sm
-                      appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all"
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-surface-600">Faculty</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingNew(p => ({ ...p, faculty: !p.faculty, department: !p.faculty ? true : p.department, course: !p.faculty ? true : p.course }))}
+                    className="text-[11px] font-bold text-primary-600 flex items-center gap-1 hover:text-primary-700"
                   >
-                    <option value="">Select Faculty</option>
-                    {faculties.map((f) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />
+                    {isAddingNew.faculty ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                    {isAddingNew.faculty ? 'Cancel' : 'Add New'}
+                  </button>
                 </div>
+                {isAddingNew.faculty ? (
+                  <input
+                    type="text"
+                    placeholder="Enter New Faculty Name"
+                    value={newData.facultyName}
+                    onChange={(e) => setNewData({ ...newData, facultyName: e.target.value })}
+                    className={`w-full px-4 py-2.5 bg-surface-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all ${errors.facultyId ? 'border-danger' : 'border-surface-200'}`}
+                  />
+                ) : (
+                  <div className="relative">
+                    <select
+                      value={formData.facultyId}
+                      onChange={(e) =>
+                        setFormData({ ...formData, facultyId: e.target.value, departmentId: '', courseCode: '' })
+                      }
+                      className={`w-full px-4 py-2.5 pr-10 bg-surface-50 border rounded-xl text-sm
+                        appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all ${errors.facultyId ? 'border-danger' : 'border-surface-200'}`}
+                    >
+                      <option value="">Select Faculty</option>
+                      {faculties.map((f) => (
+                        <option key={f.id} value={f.id}>{f.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />
+                  </div>
+                )}
+                {errors.facultyId && <p className="text-[11px] text-danger mt-1">{errors.facultyId}</p>}
               </div>
 
               {/* Department */}
               <div>
-                <label className="block text-xs font-semibold text-surface-600 mb-1.5">Department</label>
-                <div className="relative">
-                  <select
-                    value={formData.departmentId}
-                    onChange={(e) =>
-                      setFormData({ ...formData, departmentId: e.target.value, courseCode: '' })
-                    }
-                    disabled={!selectedFaculty}
-                    className="w-full px-4 py-2.5 pr-10 bg-surface-50 border border-surface-200 rounded-xl text-sm
-                      appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400
-                      disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-surface-600">Department</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingNew(p => ({ ...p, department: !p.department, course: !p.department ? true : p.course }))}
+                    disabled={!selectedFaculty && !isAddingNew.faculty}
+                    className="text-[11px] font-bold text-primary-600 flex items-center gap-1 hover:text-primary-700 disabled:opacity-50"
                   >
-                    <option value="">Select Department</option>
-                    {selectedFaculty?.departments.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />
+                    {isAddingNew.department ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                    {isAddingNew.department ? 'Cancel' : 'Add New'}
+                  </button>
                 </div>
+                {isAddingNew.department ? (
+                  <input
+                    type="text"
+                    placeholder="Enter New Department Name"
+                    value={newData.departmentName}
+                    onChange={(e) => setNewData({ ...newData, departmentName: e.target.value })}
+                    className={`w-full px-4 py-2.5 bg-surface-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all ${errors.departmentId ? 'border-danger' : 'border-surface-200'}`}
+                  />
+                ) : (
+                  <div className="relative">
+                    <select
+                      value={formData.departmentId}
+                      onChange={(e) =>
+                        setFormData({ ...formData, departmentId: e.target.value, courseCode: '' })
+                      }
+                      disabled={!selectedFaculty}
+                      className={`w-full px-4 py-2.5 pr-10 bg-surface-50 border rounded-xl text-sm
+                        appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400
+                        disabled:opacity-50 disabled:cursor-not-allowed transition-all ${errors.departmentId ? 'border-danger' : 'border-surface-200'}`}
+                    >
+                      <option value="">Select Department</option>
+                      {selectedFaculty?.departments.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />
+                  </div>
+                )}
+                {errors.departmentId && <p className="text-[11px] text-danger mt-1">{errors.departmentId}</p>}
               </div>
 
               {/* Course */}
               <div>
-                <label className="block text-xs font-semibold text-surface-600 mb-1.5">Course Code</label>
-                <div className="relative">
-                  <select
-                    value={formData.courseCode}
-                    onChange={(e) => setFormData({ ...formData, courseCode: e.target.value })}
-                    disabled={!selectedDept}
-                    className={`w-full px-4 py-2.5 pr-10 bg-surface-50 border rounded-xl text-sm
-                      appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400
-                      disabled:opacity-50 disabled:cursor-not-allowed transition-all
-                      ${errors.courseCode ? 'border-danger' : 'border-surface-200'}
-                    `}
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-surface-600">Course Code</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingNew(p => ({ ...p, course: !p.course }))}
+                    disabled={(!selectedDept && !isAddingNew.department) || (!selectedFaculty && !isAddingNew.faculty)}
+                    className="text-[11px] font-bold text-primary-600 flex items-center gap-1 hover:text-primary-700 disabled:opacity-50"
                   >
-                    <option value="">Select Course</option>
-                    {availableCourses.map((c) => (
-                      <option key={c.code} value={c.code}>{c.code} — {c.title}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />
+                    {isAddingNew.course ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                    {isAddingNew.course ? 'Cancel' : 'Add New'}
+                  </button>
                 </div>
-                {errors.courseCode && (
+                {isAddingNew.course ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      placeholder="Code (e.g. CSC101)"
+                      value={newData.courseCode}
+                      onChange={(e) => setNewData({ ...newData, courseCode: e.target.value })}
+                      className={`w-full px-4 py-2.5 bg-surface-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all ${errors.courseCode ? 'border-danger' : 'border-surface-200'}`}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Course Title"
+                      value={newData.courseTitle}
+                      onChange={(e) => setNewData({ ...newData, courseTitle: e.target.value })}
+                      className={`w-full px-4 py-2.5 bg-surface-50 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all ${errors.courseTitle ? 'border-danger' : 'border-surface-200'}`}
+                    />
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <select
+                      value={formData.courseCode}
+                      onChange={(e) => setFormData({ ...formData, courseCode: e.target.value })}
+                      disabled={!selectedDept}
+                      className={`w-full px-4 py-2.5 pr-10 bg-surface-50 border rounded-xl text-sm
+                        appearance-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400
+                        disabled:opacity-50 disabled:cursor-not-allowed transition-all
+                        ${errors.courseCode ? 'border-danger' : 'border-surface-200'}
+                      `}
+                    >
+                      <option value="">Select Course</option>
+                      {availableCourses.map((c) => (
+                        <option key={c.code} value={c.code}>{c.code} — {c.title}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 pointer-events-none" />
+                  </div>
+                )}
+                {errors.courseCode && !isAddingNew.course && (
                   <p className="text-[11px] text-danger mt-1 flex items-center gap-1">
                     <AlertCircle className="w-3 h-3" /> {errors.courseCode}
+                  </p>
+                )}
+                {isAddingNew.course && (errors.courseCode || errors.courseTitle) && (
+                  <p className="text-[11px] text-danger mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> {errors.courseCode || errors.courseTitle}
                   </p>
                 )}
               </div>

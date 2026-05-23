@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   BookOpen,
   PlayCircle,
@@ -16,14 +16,33 @@ import Navbar from './components/Navbar';
 import QuestionCard from './components/QuestionCard';
 import UploadModal from './components/UploadModal';
 import QuizEngine from './components/QuizEngine';
+import AuthModal from './components/AuthModal';
+import { supabase } from './lib/supabase';
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [faculties, setFaculties] = useState(initialData.faculties);
   const [questions, setQuestions] = useState(initialData.questions);
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isQuizMode, setIsQuizMode] = useState(false);
+
+  useEffect(() => {
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Filter questions for the selected course
   const courseQuestions = useMemo(() => {
@@ -37,7 +56,7 @@ export default function App() {
     const query = searchQuery.toLowerCase();
     const matchingCourses = [];
 
-    initialData.faculties.forEach((faculty) => {
+    faculties.forEach((faculty) => {
       faculty.departments.forEach((dept) => {
         dept.courses.forEach((course) => {
           if (
@@ -63,20 +82,25 @@ export default function App() {
   const handleUpload = (newQuestion) => {
     setQuestions((prev) => [newQuestion, ...prev]);
     // Auto-navigate to the uploaded question's course
-    const allCourses = initialData.faculties.flatMap((f) =>
+    const allCourses = faculties.flatMap((f) =>
       f.departments.flatMap((d) => d.courses)
     );
     const course = allCourses.find((c) => c.code === newQuestion.courseCode);
     if (course) setSelectedCourse(course);
   };
 
+  // Handle adding new metadata from UploadModal
+  const handleAddNewMetadata = (newFaculties) => {
+    setFaculties(newFaculties);
+  };
+
   // Stats
   const totalQuestions = questions.length;
-  const totalCourses = initialData.faculties.reduce(
+  const totalCourses = faculties.reduce(
     (sum, f) => sum + f.departments.reduce((s, d) => s + d.courses.length, 0),
     0
   );
-  const totalDepartments = initialData.faculties.reduce(
+  const totalDepartments = faculties.reduce(
     (sum, f) => sum + f.departments.length,
     0
   );
@@ -85,7 +109,7 @@ export default function App() {
     <div className="flex h-screen overflow-hidden bg-surface-50">
       {/* Sidebar */}
       <Sidebar
-        faculties={initialData.faculties}
+        faculties={faculties}
         selectedCourse={selectedCourse}
         onSelectCourse={(course) => {
           setSelectedCourse(course);
@@ -100,6 +124,8 @@ export default function App() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Navbar */}
         <Navbar
+          user={user}
+          onLoginClick={() => setIsAuthOpen(true)}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           onUploadClick={() => setIsUploadOpen(true)}
@@ -227,6 +253,7 @@ export default function App() {
               <QuizEngine
                 questions={courseQuestions}
                 courseCode={selectedCourse.code}
+                user={user}
                 onExit={() => setIsQuizMode(false)}
               />
 
@@ -262,14 +289,25 @@ export default function App() {
                         <FolderOpen className="w-4 h-4" />
                         Browse Courses
                       </button>
-                      <button
-                        onClick={() => setIsUploadOpen(true)}
-                        className="flex items-center gap-2 px-5 py-3 bg-white/15 backdrop-blur-sm text-white text-sm font-semibold
-                          rounded-xl border border-white/20 hover:bg-white/25 transition-all"
-                      >
-                        <BookOpen className="w-4 h-4" />
-                        Upload a Question
-                      </button>
+                      {user ? (
+                        <button
+                          onClick={() => setIsUploadOpen(true)}
+                          className="flex items-center gap-2 px-5 py-3 bg-white/15 backdrop-blur-sm text-white text-sm font-semibold
+                            rounded-xl border border-white/20 hover:bg-white/25 transition-all"
+                        >
+                          <BookOpen className="w-4 h-4" />
+                          Upload a Question
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setIsAuthOpen(true)}
+                          className="flex items-center gap-2 px-5 py-3 bg-white/15 backdrop-blur-sm text-white text-sm font-semibold
+                            rounded-xl border border-white/20 hover:bg-white/25 transition-all"
+                        >
+                          <Users className="w-4 h-4" />
+                          Sign In to Upload
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -280,7 +318,7 @@ export default function App() {
                     { icon: FileQuestion, label: 'Total Questions', value: totalQuestions, color: 'primary' },
                     { icon: BookOpen, label: 'Courses', value: totalCourses, color: 'primary' },
                     { icon: Users, label: 'Departments', value: totalDepartments, color: 'primary' },
-                    { icon: TrendingUp, label: 'Faculties', value: initialData.faculties.length, color: 'primary' },
+                    { icon: TrendingUp, label: 'Faculties', value: faculties.length, color: 'primary' },
                   ].map((stat, i) => (
                     <div
                       key={i}
@@ -302,7 +340,7 @@ export default function App() {
                     Quick Access — Popular Courses
                   </h3>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {initialData.faculties.flatMap((f) =>
+                    {faculties.flatMap((f) =>
                       f.departments.flatMap((d) =>
                         d.courses.slice(0, 1).map((course) => {
                           const qCount = questions.filter((q) => q.courseCode === course.code).length;
@@ -344,12 +382,19 @@ export default function App() {
       </div>
 
       {/* Upload Modal */}
-      <UploadModal
-        isOpen={isUploadOpen}
-        onClose={() => setIsUploadOpen(false)}
-        faculties={initialData.faculties}
-        onSubmit={handleUpload}
-      />
+      {user && (
+        <UploadModal
+          isOpen={isUploadOpen}
+          onClose={() => setIsUploadOpen(false)}
+          faculties={faculties}
+          onSubmit={handleUpload}
+          onAddMetadata={handleAddNewMetadata}
+          user={user}
+        />
+      )}
+
+      {/* Auth Modal */}
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
     </div>
   );
 }

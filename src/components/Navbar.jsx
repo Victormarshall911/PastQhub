@@ -1,6 +1,7 @@
-import { Search, Plus, Menu, GraduationCap } from 'lucide-react';
+import { Search, Plus, Menu, GraduationCap, LogOut, User } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
-export default function Navbar({ searchQuery, onSearchChange, onUploadClick, onMenuClick }) {
+export default function Navbar({ user, onLoginClick, searchQuery, onSearchChange, onUploadClick, onMenuClick }) {
   return (
     <header className="sticky top-0 z-30 glass border-b border-surface-200/60">
       <div className="flex items-center justify-between px-4 sm:px-6 py-3 gap-3">
@@ -42,17 +43,40 @@ export default function Navbar({ searchQuery, onSearchChange, onUploadClick, onM
           </div>
         </div>
 
-        {/* Right - Upload */}
-        <button
-          onClick={onUploadClick}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-primary-500
-            text-white text-sm font-semibold rounded-xl shadow-lg shadow-primary-500/25
-            hover:shadow-xl hover:shadow-primary-500/30 hover:-translate-y-0.5
-            active:translate-y-0 transition-all duration-200 shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="hidden sm:inline">Upload</span>
-        </button>
+        {/* Right - Actions */}
+        <div className="flex items-center gap-3 shrink-0">
+          {user ? (
+            <>
+              <button
+                onClick={onUploadClick}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-primary-500
+                  text-white text-sm font-semibold rounded-xl shadow-lg shadow-primary-500/25
+                  hover:shadow-xl hover:shadow-primary-500/30 hover:-translate-y-0.5
+                  active:translate-y-0 transition-all duration-200"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Upload</span>
+              </button>
+              
+              <button
+                onClick={() => supabase.auth.signOut()}
+                className="p-2.5 bg-surface-100 text-surface-500 hover:bg-danger/10 hover:text-danger rounded-xl transition-all"
+                title="Sign Out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onLoginClick}
+              className="flex items-center gap-2 px-4 py-2.5 bg-surface-100 text-surface-700
+                text-sm font-semibold rounded-xl hover:bg-surface-200 transition-all duration-200"
+            >
+              <User className="w-4 h-4" />
+              <span className="hidden sm:inline">Sign In</span>
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
