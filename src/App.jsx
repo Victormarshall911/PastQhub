@@ -1,14 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
-  BookOpen,
   PlayCircle,
   FileQuestion,
   Search,
-  TrendingUp,
-  Users,
-  FolderOpen,
   ArrowRight,
-  Sparkles,
 } from 'lucide-react';
 import { initialData } from './data/index';
 import Sidebar from './components/Sidebar';
@@ -17,6 +12,7 @@ import QuestionCard from './components/QuestionCard';
 import UploadModal from './components/UploadModal';
 import QuizEngine from './components/QuizEngine';
 import AuthModal from './components/AuthModal';
+import Dashboard from './components/Dashboard';
 import { supabase } from './lib/supabase';
 
 export default function App() {
@@ -94,16 +90,7 @@ export default function App() {
     setFaculties(newFaculties);
   };
 
-  // Stats
-  const totalQuestions = questions.length;
-  const totalCourses = faculties.reduce(
-    (sum, f) => sum + f.departments.reduce((s, d) => s + d.courses.length, 0),
-    0
-  );
-  const totalDepartments = faculties.reduce(
-    (sum, f) => sum + f.departments.length,
-    0
-  );
+
 
   return (
     <div className="flex h-screen overflow-hidden bg-surface-50">
@@ -118,6 +105,12 @@ export default function App() {
         }}
         isMobileOpen={isSidebarOpen}
         onCloseMobile={() => setIsSidebarOpen(false)}
+        onHome={() => {
+          setSelectedCourse(null);
+          setIsQuizMode(false);
+          setSearchQuery('');
+        }}
+        isHome={!selectedCourse && !isQuizMode && !searchQuery}
       />
 
       {/* Main Area */}
@@ -258,124 +251,19 @@ export default function App() {
               />
 
             ) : (
-              /* Welcome / Dashboard */
-              <div className="animate-fade-in">
-                {/* Hero */}
-                <div className="bg-gradient-to-br from-primary-600 via-primary-700 to-primary-900 rounded-3xl p-8 sm:p-10 text-white mb-8 shadow-xl shadow-primary-900/20 relative overflow-hidden">
-                  {/* Decorative elements */}
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3" />
-                  <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4" />
-
-                  <div className="relative">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="w-5 h-5 text-primary-300" />
-                      <span className="text-xs font-semibold text-primary-300 uppercase tracking-wider">
-                        University Past Questions
-                      </span>
-                    </div>
-                    <h1 className="text-3xl sm:text-4xl font-extrabold mb-3 leading-tight">
-                      Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-white to-primary-200">PastQHub</span>
-                    </h1>
-                    <p className="text-primary-200 text-sm sm:text-base max-w-lg leading-relaxed">
-                      Access past examination questions, practice with interactive quizzes, and prepare confidently for your exams.
-                    </p>
-
-                    <div className="flex flex-wrap gap-3 mt-6">
-                      <button
-                        onClick={() => setIsSidebarOpen(true)}
-                        className="lg:hidden flex items-center gap-2 px-5 py-3 bg-white text-primary-700 text-sm font-bold
-                          rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all"
-                      >
-                        <FolderOpen className="w-4 h-4" />
-                        Browse Courses
-                      </button>
-                      {user ? (
-                        <button
-                          onClick={() => setIsUploadOpen(true)}
-                          className="flex items-center gap-2 px-5 py-3 bg-white/15 backdrop-blur-sm text-white text-sm font-semibold
-                            rounded-xl border border-white/20 hover:bg-white/25 transition-all"
-                        >
-                          <BookOpen className="w-4 h-4" />
-                          Upload a Question
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setIsAuthOpen(true)}
-                          className="flex items-center gap-2 px-5 py-3 bg-white/15 backdrop-blur-sm text-white text-sm font-semibold
-                            rounded-xl border border-white/20 hover:bg-white/25 transition-all"
-                        >
-                          <Users className="w-4 h-4" />
-                          Sign In to Upload
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Stats */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-8">
-                  {[
-                    { icon: FileQuestion, label: 'Total Questions', value: totalQuestions, color: 'primary' },
-                    { icon: BookOpen, label: 'Courses', value: totalCourses, color: 'primary' },
-                    { icon: Users, label: 'Departments', value: totalDepartments, color: 'primary' },
-                    { icon: TrendingUp, label: 'Faculties', value: faculties.length, color: 'primary' },
-                  ].map((stat, i) => (
-                    <div
-                      key={i}
-                      className="bg-white rounded-xl border border-surface-200 p-4 hover:shadow-md hover:border-primary-200
-                        transition-all duration-300 animate-slide-up"
-                      style={{ animationDelay: `${i * 0.08}s`, opacity: 0 }}
-                    >
-                      <stat.icon className="w-5 h-5 text-primary-500 mb-2" />
-                      <p className="text-2xl font-bold text-surface-800">{stat.value}</p>
-                      <p className="text-xs text-surface-400 font-medium">{stat.label}</p>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Quick Access */}
-                <div>
-                  <h3 className="text-base font-bold text-surface-800 mb-4 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-primary-500" />
-                    Quick Access — Popular Courses
-                  </h3>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    {faculties.flatMap((f) =>
-                      f.departments.flatMap((d) =>
-                        d.courses.slice(0, 1).map((course) => {
-                          const qCount = questions.filter((q) => q.courseCode === course.code).length;
-                          return (
-                            <button
-                              key={course.code}
-                              onClick={() => {
-                                setSelectedCourse(course);
-                                setIsQuizMode(false);
-                              }}
-                              className="bg-white rounded-xl border border-surface-200 p-4 text-left
-                                hover:shadow-lg hover:border-primary-200 hover:-translate-y-0.5
-                                transition-all duration-300 group"
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-mono font-bold text-primary-600 bg-primary-50 px-2 py-0.5 rounded-md">
-                                  {course.code}
-                                </span>
-                                <span className="text-xs text-surface-400 font-medium">{qCount} Qs</span>
-                              </div>
-                              <h4 className="text-sm font-semibold text-surface-700 group-hover:text-primary-700 transition-colors">
-                                {course.title}
-                              </h4>
-                              <p className="text-[11px] text-surface-400 mt-1">{f.name} → {d.name}</p>
-                              <div className="mt-3 flex items-center gap-1 text-xs text-primary-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                View questions <ArrowRight className="w-3 h-3" />
-                              </div>
-                            </button>
-                          );
-                        })
-                      )
-                    )}
-                  </div>
-                </div>
-              </div>
+              /* Dashboard */
+              <Dashboard
+                faculties={faculties}
+                questions={questions}
+                user={user}
+                onSelectCourse={(course) => {
+                  setSelectedCourse(course);
+                  setIsQuizMode(false);
+                }}
+                onUploadClick={() => setIsUploadOpen(true)}
+                onAuthClick={() => setIsAuthOpen(true)}
+                onSidebarOpen={() => setIsSidebarOpen(true)}
+              />
             )}
           </div>
         </main>
