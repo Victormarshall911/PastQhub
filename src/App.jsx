@@ -10,7 +10,7 @@ import {
   ArrowRight,
   Sparkles,
 } from 'lucide-react';
-import { initialData } from './data/mockData';
+import { initialData } from './data/index';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import QuestionCard from './components/QuestionCard';

@@ -8,11 +8,31 @@ import {
   BookOpen,
   Building2,
   X,
+  Sprout,
+  Palette,
+  Microscope,
+  Scale,
+  Briefcase,
+  HeartPulse,
+  Pill,
+  Users,
+  PawPrint,
 } from 'lucide-react';
 
 const facultyIcons = {
-  Atom: Atom,
-  Wrench: Wrench,
+  Atom,
+  Wrench,
+  Sprout,
+  Palette,
+  Microscope,
+  Scale,
+  Briefcase,
+  HeartPulse,
+  Pill,
+  Users,
+  PawPrint,
+  Building2,
+  GraduationCap,
 };
 
 export default function Sidebar({
